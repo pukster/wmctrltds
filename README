@@ -1,0 +1,52 @@
+This is an attempt to provide more functionality to wmctrl (see http://tomas.styblo.name/wmctrl/). wmctrl is a command line tool which allows for certain interaction capabilities with the window manager. It is primarily used to pattern match window identifiers and move the coordinates of windows which pass the pattern matching.
+
+This is ideal for situations where these parameters are well known. For example, the window title could be used to move all instances of google chrome around as such (note coordinates, in this case 0,1200 are global, such that multiple monitors and workspaces are summed)
+
+wmctrl -r 'google-chrome' -e '0,1200,0,-1,-1'
+
+The problem this presents is that all instances of google chrome will be moved to the same coordinates. If the user wishes to move each one to a different location, they must specify a unique identifier. The window ID will suffice for this, below three instances of google-chrome are moved.
+
+wmctrl -i -r '0x02600003' -e '0,1200,0,-1,-1'
+wmctrl -i -r '0x02600004' -e '0,1400,0,-1,-1'
+wmctrl -i -r '0x02600005' -e '0,1600,0,-1,-1'
+
+The problem with this approach is that the user needs to know the window IDs. It is possible to get window id (ie. via xwininfo), however, it requires clicking the mouse over the desired window, which is time consuming. Alternatively, the user can try modifying the window information to have a priori knowledge to pass to the pattern matching.
+
+This information would ideally be in the form of the window id, however, it is not possible to assign window ids (the shell and the window manager prefer to stay separate). Alternatively window title can be modified, however, this is unreliable as the window title of some programs, such as gedit, changes based on what file is loaded. Issuing a command such as
+
+gedit *.txt
+
+will generate an unpredictable title.
+
+There are a few approaches that can be taken, none of them perfect. First, the :ACTIVE: flag can be used. This treats the current active window as the window to control. It would idealy be used as such
+
+google-chrome
+wmctrl -r :ACTIVE: -e '0,1200,0,-1,-1'
+
+Unfortunately, the `google-chrome` returns control back to the command line BEFORE the window manager launches and activates the google chrome window, therefore, the wrong window ends up getting moved (generally the console which the commands were typed in). This can be circumvented by inserting a pause
+
+google-chrome
+sleep 2
+wmctrl -r :ACTIVE: -e '0,1200,0,-1,-1'
+
+However, it is impossible to guess how long the window will take to launch. `gnome-terminal` launches almost instantaneously. `gedit *.tex` can take up to 10 seconds for large numbers of files.
+
+Another option is to use the process IDs (pid) and continually check to see if the window associated with the pid as launched, then strip the window ID based on that. The pid can be obtained via a call to `ps`. It is further stored in `$!`. All this information (windowID x pid pairs) can be obtained via the call 
+
+wmctrl -l -p
+
+a loop can then be set up to 'listen' for changes to wmctrl -l -p and return the correct windowID for the target pid. The problem is that the pid returned by a call to `ps` or `$i` is not the same pid specified in `wmctrl -l -p`
+
+the only other option is to continually listen to `wmctrl -l` for changes, and when a new window is created, to treat it as the target window and move it. This is not a perfect approach. Launching multiple windows at the same time will surely lead to problems. Also, if a, for example, system update window pops up, it will accidentally be treated as the target window. Therefore, in addition the window title must also be pattern matched. As a further constraint, it is best to launch these series of scripts sequentially. Therefore, to launch three browsers, the following pattern should be used
+
+#launch google-chrome
+google-chrome
+#script to loop over calls to wmctrl -l and wait for window to launch then move to coordinates <x1 , y1>
+./script1.sh
+#script to loop over calls to wmctrl -l and wait for window to launch then move to coordinates <x2 , y2>
+./script2.sh
+
+and so on
+
+
+
